@@ -1,0 +1,603 @@
+---
+title: "jsc370final"
+author: "Jianhong Guo"
+date: "26/02/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. Intruduction
+
+The dataset for this project is life expectancy data. It contains the health factors and economic data for 193 countries from year 2000 to 2015. What's more, the health factor data is collected from World Health Organization (WHO) while the economic data is from the United Nation website. Life expectancy data contains 2938 rows, and each row is about the life expectancy related information for a country in a specific year. The data set has 22 columns, including the immunization, mortality, economy and society related information. Specifically, Life expectancy data includes variables "Country", "Year", "Status", "Life expectancy", "GDP", "Adult Mortality", "BMI", "Schooling", "Hepatitis B", "Alcohol" and so on. 
+
+The question that we are going to answer based on this dataset is as following:
+For the given life expectancy related variables, which variables greatly affect the life expectancy? How those factors affect the life expectancy?
+
+By knowing the above question, we may change situation of the specific variables to improve the life expectancy of a person/ country, and we can use the variables to generate an effective model to predict the life expectancy by given information.
+
+# 2. Methods
+
+This data set is download from Kaggle(https://www.kaggle.com/kumarajarshi/life-expectancy-who). 
+
+First, in order to better use and understand the columns, I changed the variable names of the data.
+
+By counting the missing values, I found that missing values are mainly concentrated in Hepatitis_B, GDP, population and total_expenditure variables, and are concentrated in countries such as South Sudan and Somalia where information may be difficult to collect. Since these missing data are difficult to find, I replaced the missing values with the mean values for those variables with the same status (developed and developing) and year values.
+
+For the verification of wrong data, because the data comes from the WHO and the United Nations website, it has certain authority and reliability. In addition, by checking the range of some columns online, no obvious errors were found.
+
+The main methods for this project is shown as follows:
+
+Use rename() in dplyr library to rename column names.
+
+Use ggplot2 to plot most plots.
+
+Use lm() and gam() in mgcv library to generate Multiple linear models.
+
+Use corPlot() in psych library to plot correlation plot.
+
+Use ggarrange() in ggpubr library to combine plots
+
+Use facet_zoom() in ggforce library to enlargr part of points plot.
+
+```{r, echo=FALSE}
+library(data.table)
+library(dplyr)
+library(tidyverse)
+library(ggpubr)
+```
+
+
+```{r}
+life <-fread("Life Expectancy Data.csv")
+nrow(life)
+```
+
+### rename the columns, such as "Life expectancy" to "life_expectancy", "Adult Mortality" to "adult_mortalit", and so on.
+
+```{r, echo=FALSE}
+life <- rename(life, life_expectancy = `Life expectancy`,adult_mortalit = `Adult Mortality`, infant_deaths = `infant deaths`,
+             percentage_expenditure = `percentage expenditure`,Hepatitis_B= `Hepatitis B`, under_five_deaths = `under-five deaths`,
+             total_expenditure=`Total expenditure`,  Hiv_aids =`HIV/AIDS`, thinness_1_19=`thinness  1-19 years`,thinness_5_9=`thinness 5-9 years`,income_composition=`Income composition of resources`
+             )
+```
+
+### show the vairable type and the number of missing values for variables.
+
+```{r,echo=FALSE}
+table1 <- life[,.(
+  country = typeof(Country),
+  year = typeof(Year),
+  status = typeof(Status),
+  life_expectancy = typeof(life_expectancy),
+  adult_mortalit = typeof(adult_mortalit),
+  infant_deaths = typeof(infant_deaths),
+  alcohol = typeof(Alcohol),
+  percentage_expenditure =typeof(percentage_expenditure),
+  Hepatitis_B = typeof(Hepatitis_B),
+  measles= typeof(Measles),
+  bmi = typeof(BMI),
+  under_five_deaths = typeof(under_five_deaths),
+  polio = typeof(`Polio`),
+  total_expenditure = typeof(total_expenditure),
+  diphtheria =typeof(`Diphtheria`),
+  Hiv_aids= typeof(Hiv_aids),
+  gdp= typeof(GDP),
+  population = typeof(Population),
+  thinness_1_19 =typeof(thinness_1_19),
+  thinness_5_9= typeof( thinness_5_9),
+  income_composition= typeof(income_composition),
+  Schooling = typeof(Schooling)
+  ) ]
+
+table3 <- life[,.(
+  country ="/",
+  year = "/",
+  status = "/",
+  life_expectancy = mean(life_expectancy, na.rm=T),
+  adult_mortalit = mean(adult_mortalit, na.rm=T),
+  infant_deaths = mean(infant_deaths, na.rm=T),
+  alcohol = mean(Alcohol, na.rm=T),
+  percentage_expenditure =mean(percentage_expenditure, na.rm=T),
+  Hepatitis_B = mean(Hepatitis_B, na.rm=T),
+  measles= mean(Measles, na.rm=T), 
+  bmi = mean(BMI, na.rm=T),
+  under_five_deaths = mean(under_five_deaths, na.rm=T),
+  polio = mean(`Polio`, na.rm=T),
+  total_expenditure = mean(total_expenditure, na.rm=T),
+  diphtheria =mean(`Diphtheria`, na.rm=T),
+  Hiv_aids= mean(Hiv_aids, na.rm=T),
+  gdp= mean(GDP, na.rm=T),
+  population = mean(Population, na.rm=T),
+  thinness_1_19 =mean(thinness_1_19, na.rm=T),
+  thinness_5_9= mean( thinness_5_9, na.rm=T),
+  income_composition= mean(income_composition, na.rm=T),
+  Schooling = mean(Schooling, na.rm=T)
+  ) ]
+
+table2 <- life[,.(
+  country = sum(is.na(Country)),
+  year = sum(is.na(Year)),
+  status = sum(is.na(Status)),
+  life_expectancy = sum(is.na(life_expectancy)),
+  adult_mortalit = sum(is.na(adult_mortalit)),
+  infant_deaths = sum(is.na(infant_deaths)),
+  alcohol = sum(is.na(Alcohol)),
+  percentage_expenditure =sum(is.na(percentage_expenditure)),
+  Hepatitis_B = sum(is.na(Hepatitis_B)),
+  measles= sum(is.na(Measles)),
+  bmi = sum(is.na(BMI)),
+  under_five_deaths = sum(is.na(under_five_deaths)),
+  polio = sum(is.na(`Polio`)),
+  total_expenditure = sum(is.na(total_expenditure)),
+  diphtheria =sum(is.na(`Diphtheria`)),
+  Hiv_aids= sum(is.na(Hiv_aids)),
+  gdp= sum(is.na(GDP)),
+  population = sum(is.na(Population)),
+  thinness_1_19 =sum(is.na(thinness_1_19)),
+  thinness_5_9= sum(is.na(thinness_5_9)),
+  income_composition= sum(is.na(income_composition)),
+  Schooling = sum(is.na(Schooling))
+  ) ]
+
+
+r_table <- rbind(table1,table3, table2)
+
+final_table<-as.data.frame(t(r_table))
+final_table<-rename(final_table, type=V1,mean=V2, n_NA = V3 )
+
+knitr::kable(final_table, caption = "Type and Number of Missing values for the variables in data")
+
+```
+
+### Show the countries with top6 number of missing values
+
+```{r, echo=FALSE}
+table_na <- life[,.(
+  total_na  = sum(is.na(life_expectancy))+ sum(is.na(adult_mortalit))+sum(is.na(infant_deaths))+sum(is.na(Alcohol))+
+    sum(is.na(percentage_expenditure))+ sum(is.na(Hepatitis_B))+ sum(is.na(Measles))+sum(is.na(BMI))+
+    sum(is.na(under_five_deaths))+ sum(is.na(`Polio`))+sum(is.na(total_expenditure))+sum(is.na(`Diphtheria`))+sum(is.na(Hiv_aids))+
+    sum(is.na(GDP))+ sum(is.na(Population))+sum(is.na(thinness_1_19))+ sum(is.na(thinness_5_9))+ sum(is.na(income_composition))+sum(is.na(Schooling))
+  ), by=Country ][order(-total_na)]
+
+table_na<-head(table_na)
+knitr::kable(table_na, caption = "Number of Missing values for countries in top 6")
+```
+
+### Replace the missing value with the mean of values has the same Year and Status, and Show the number of missing values after replacement to check the result of replacement.
+
+```{r, echo=FALSE}
+life[, life_expectancy:= ifelse(is.na(life_expectancy), mean(life_expectancy,na.rm =TRUE), life_expectancy), by = .(Year, Status)]
+life[, adult_mortalit:= ifelse(is.na(adult_mortalit), as.integer(mean(adult_mortalit,na.rm =TRUE)), adult_mortalit), by = .(Year, Status)]
+life[, Alcohol:= ifelse(is.na(Alcohol), mean(Alcohol,na.rm =TRUE), Alcohol), by=.(Year, Status)]
+life[, Hepatitis_B:= ifelse(is.na(Hepatitis_B), as.integer(mean(Hepatitis_B,na.rm =TRUE)), Hepatitis_B), by = .(Year, Status)]
+life[, BMI:= ifelse(is.na(BMI), mean(BMI,na.rm =TRUE), BMI), by = .(Year, Status)]
+life[, Polio:= ifelse(is.na(Polio), as.integer(mean(Polio,na.rm =TRUE)), Polio), by =  .(Year, Status)]
+life[, total_expenditure:= ifelse(is.na(total_expenditure), mean(total_expenditure,na.rm =TRUE), total_expenditure), by = .( Status)]
+life[, Diphtheria:= ifelse(is.na(Diphtheria), as.integer(mean(Diphtheria,na.rm =TRUE)), Diphtheria), by = .(Year, Status)]
+life[, GDP:= ifelse(is.na(GDP), mean(GDP,na.rm =TRUE), GDP), by = .(Year, Status)]
+life[, Population:= ifelse(is.na(Population), mean(Population,na.rm =TRUE), Population),by = .(Year, Status)]
+life[, thinness_1_19:= ifelse(is.na(thinness_1_19), mean(thinness_1_19,na.rm =TRUE), thinness_1_19), by = .(Year, Status)]
+life[, thinness_5_9:= ifelse(is.na(thinness_5_9), mean(thinness_5_9,na.rm =TRUE), thinness_5_9),by = .(Year, Status)]
+life[, income_composition:= ifelse(is.na(income_composition), mean(income_composition,na.rm =TRUE), income_composition),by = .(Year, Status)]
+life[, Schooling:= ifelse(is.na(Schooling), mean(Schooling,na.rm =TRUE), Schooling), by = .(Year, Status)]
+
+
+```
+
+
+
+```{r, echo=FALSE}
+table3 <- life[,.(
+  country = sum(is.na(Country)),
+  year = sum(is.na(Year)),
+  status = sum(is.na(Status)),
+  life_expectancy = sum(is.na(life_expectancy)),
+  adult_mortalit = sum(is.na(adult_mortalit)),
+  infant_deaths = sum(is.na(infant_deaths)),
+  alcohol = sum(is.na(Alcohol)),
+  percentage_expenditure =sum(is.na(percentage_expenditure)),
+  Hepatitis_B = sum(is.na(Hepatitis_B)),
+  measles= sum(is.na(Measles)),
+  bmi = sum(is.na(BMI)),
+  under_five_deaths = sum(is.na(under_five_deaths)),
+  polio = sum(is.na(`Polio`)),
+  total_expenditure = sum(is.na(total_expenditure)),
+  diphtheria =sum(is.na(`Diphtheria`)),
+  Hiv_aids= sum(is.na(Hiv_aids)),
+  gdp= sum(is.na(GDP)),
+  population = sum(is.na(Population)),
+  thinness_1_19 =sum(is.na(thinness_1_19)),
+  thinness_5_9= sum(is.na(thinness_5_9)),
+  income_composition= sum(is.na(income_composition)),
+  Schooling = sum(is.na(Schooling))
+  ) ]
+
+final_table<-as.data.frame(t(table3))
+final_table<-rename(final_table, n_NA=V1 )
+
+knitr::kable(final_table, caption = "Number of Missing values for the variables in data")
+
+
+```
+
+### Calculate the min, mean, median and mode of life expectancy.
+
+```{r, echo=FALSE}
+table1 <- life[,.(
+  min = min(life_expectancy),
+  mean = mean(life_expectancy),
+  median =median(life_expectancy),
+  max = max(life_expectancy)
+  ) ]
+knitr::kable(table1, caption = "The min, mean, median and max of the life expectancy")
+```
+
+### Top6 lowest and highest life expectanncy with countries 
+
+```{r, echo=FALSE}
+table <- life[,.(
+   mean_life_expectancy  =mean(life_expectancy)
+  ), by=Country ][order(-mean_life_expectancy)]
+table<-head(table)
+knitr::kable(table, caption = "Top6 highest life expectanncy with countries")
+
+table <- life[,.(
+   mean_life_expectancy  =mean(life_expectancy)
+  ), by=Country ][order(mean_life_expectancy)]
+table<-head(table)
+knitr::kable(table, caption = "Top6 lowest life expectanncy with countries")
+```
+
+### Calculate the min, mean, max of vaccine coverage among 1-year-olds (%).
+
+```{r, echo=FALSE}
+table1 <- life[,.(
+  Hepatitis_B = min(Hepatitis_B),
+  Polio = min(`Polio`),
+  Diphtheria =min(`Diphtheria`)
+  ) ]
+
+table2 <- life[,.(
+  Hepatitis_B = mean(Hepatitis_B),
+  Polio = mean(`Polio`),
+  Diphtheria =mean(`Diphtheria`)
+  ) ]
+
+table3 <- life[,.(
+  Hepatitis_B = max(Hepatitis_B),
+  Polio = max(`Polio`),
+  Diphtheria =max(`Diphtheria`)
+  ) ]
+
+name <- c( "min", "mean", "max")
+r_table <- rbind(table1, table2, table3)
+final_table<-cbind(name, r_table)
+knitr::kable(final_table, caption = "Vaccine immunization coverage among 1-year-olds (%)")
+
+
+```
+
+The mean of the vaccine converge is around 80$\%$, but there are some data with vaccine coverage less than 5$\%$, which may be considered as outliers.
+
+### Create new columns
+1. create a column called vaccine_level that combined the columns of Hepatitis_B, Polio and Diphtheria in order. 
+
+If a vaccine coverage is smaller than 80, it is indicated as 1, Otherwise 2. Therefore, if both Hepatitis_B and Polio coverage are smaller than 80, and Diphtheria is greater or equal than 80, we have vaccine_level value 112.
+
+```{r, echo=FALSE}
+life <- life %>% 
+  mutate(vaccine_level =ifelse(Hepatitis_B < 80 & Polio <80 & Diphtheria<80, "111", ifelse(Hepatitis_B >= 80 & Polio <80 & Diphtheria<80, "211", ifelse(Hepatitis_B < 80 & Polio >=80 & Diphtheria<80, "121", ifelse(Hepatitis_B < 80 & Polio <80 & Diphtheria>=80, "112", ifelse(Hepatitis_B >= 80 & Polio >=80 & Diphtheria<80, "221", ifelse(Hepatitis_B >= 80 & Polio <80 & Diphtheria>=80, "212", ifelse(Hepatitis_B < 80 & Polio >=80 & Diphtheria>=80, "122", "222"))))))))
+```
+
+2. Create a new column called obesity_level according to the BMI value. 
+
+If BMI$<18.5$, obesity_level is "underweight", if BMI is greater or equal 18.5 and smaller than 24.9,  obesity_level is "normal". If the BMI is greater or equal 24.9 and smaller than 29.9,  obesity_level is "overweight". Otherwise, "obese".
+
+
+```{r, echo=FALSE}
+  
+life <- life %>% 
+  mutate(obesity_level =ifelse(BMI <18.5, "underweight", ifelse(BMI <=24.9, "normal", ifelse(BMI<=29.9, "overweight", "obese"))))
+
+```
+
+3. Create a new column called total_deaths to sum up adult_mortality, infant_deaths and under_five_deaths
+
+```{r, echo=FALSE}
+life <- life %>% 
+  mutate(total_deaths = adult_mortalit+infant_deaths+under_five_deaths)
+```
+
+
+### generate statistical summary plots for life expectancy by Status, Year, obesity_level and vaccine_level.
+
+```{r, echo=FALSE}
+life %>%
+  ggplot() +
+  aes(x= Status, y = life_expectancy) +
+  stat_summary(fun.data="mean_sdl", geom="errorbar")+ 
+  stat_summary(fun.data="mean_sdl")+
+  ggtitle("Statistical summary of life expectancy by status")
+
+```
+
+As shown by the above graph, developed countries has higer min, mean, and max values of life expectancy than developing countries, and the range of life expectancy for developed countries is shorter than developing countries.
+
+```{r, echo=FALSE}
+life %>%
+  ggplot() +
+  aes(x= Year, y = life_expectancy) +
+  stat_summary(fun.data="mean_sdl", geom="errorbar")+ 
+  stat_summary(fun.data="mean_sdl")+
+  ggtitle("Statistical summary of life expectancy by year")
+```
+
+As shown by the above graph, the mean, min and max values of life expectancy over all countries increases as the year variable increases from 2000 to 2015.
+
+```{r, echo=FALSE}
+life %>%
+  ggplot() +
+  aes(x= obesity_level, y = life_expectancy) +
+  stat_summary(fun.data="mean_sdl", geom="errorbar")+ 
+  stat_summary(fun.data="mean_sdl")+
+  ggtitle("Statistical summary of life expectancy by obesity_level")
+```
+
+The mean of the life expectancy ordered by obesity_level is shown as follows:
+normal $<$ underweight $<$ overweight $<$ obese, and it seems strange since people with normal obesity_level have the lowest life expectancy.
+
+```{r, echo=FALSE}
+life %>%
+  ggplot() +
+  aes(x= vaccine_level, y = life_expectancy) +
+  stat_summary(fun.data="mean_sdl", geom="errorbar")+ 
+  stat_summary(fun.data="mean_sdl")+
+  ggtitle("Statistical summary of life expectancy by vaccine level")
+```
+
+Since vaccine_level with 1 shows vaccine coverage $<80\%$, and 2 shows $\geq 80\%$, and the vaccine_level with more 2s has higher life_expectancy, so the higher vaccine covergae may increase the life expectancy.
+
+### generate scartterplots and smooth lines for GDP VS life expectancy, Alcohol VS life expectancy, Schooling VS life expectancy and BMI VS life expectancy.
+
+```{r, echo=FALSE}
+p <- ggplot(data=life)+
+  geom_point(aes(x=GDP, y=life_expectancy, color=Status)) +
+  geom_smooth(aes(x=GDP, y=life_expectancy), method="lm", formula = y~x)+
+  ggtitle("GDP vs. life expectancy")
+
+p1 <- ggplot(data=life)+
+  geom_point(aes(x=Alcohol, y=life_expectancy,  color=Status))+
+  geom_smooth(aes(x=Alcohol, y=life_expectancy), method="lm", formula = y~x)+
+  ggtitle("Alcohol vs. life expectancy")
+
+p2 <- ggplot(data=life)+
+  geom_point(aes(x=Schooling, y=life_expectancy, color=Status))+
+  geom_smooth(aes(x=Schooling, y=life_expectancy), method="lm", formula = y~x)+ 
+  ggtitle("Schooling vs. life expectancy")
+
+p3 <- ggplot(data=life)+
+  geom_point(aes(x=BMI, y=life_expectancy,  color=Status))+
+  geom_smooth(aes(x=BMI, y=life_expectancy), method="lm", formula = y~x)+
+  ggtitle("BMI vs. life expectancy")
+
+
+ggarrange(p, p1, p2,p3,
+                    ncol = 2, nrow = 2)
+
+```
+
+
+From the above graph, the life expectancy increases as GDP increases, but the life_expectancy stays still when GDP reaches a certain level.
+
+As alcohol increases, the life expectancy increases, but the range of life expectancy for  alcohol level are large. Also, most developed countries have high alcohol level.
+
+It is obvious that the life_expectancy increases as schooling year increase, and developed countries has higher schooling years.
+
+As BMI increases, the life expectancy increases, but the range of life expectancy for BMI are large. Also, most developed countries have high BMI level.
+
+### Checking the relationship of BMI vs. life expectancy by Status
+
+```{r, echo=FALSE}
+p <- ggplot(data=life)+
+  geom_point(aes(x=BMI, y=life_expectancy, color=Status))+
+  geom_smooth(aes(x=BMI, y=life_expectancy), method="lm", formula = y~x)+
+  facet_wrap(~Status , nrow = 3) 
+p + ggtitle("BMI vs. life expectancy by Status")
+```
+
+It is obvious that the relationship of BMI and life expectancy differs on Status. For developed countries, the increase of BMI has no obvious effect on life expectancy. However, the developing countries with higher BMI has higher mean life expectancy.
+
+### Checking if the mortality rate affect life expectancy.
+
+```{r, echo=FALSE}
+p1 <- ggplot(data=life)+
+  geom_point(aes(x=adult_mortalit, y=life_expectancy,  color=BMI))+
+  geom_smooth(aes(x=adult_mortalit, y=life_expectancy), method="lm", formula = y~x)+
+  ggtitle("adult_mortality vs. life expectancy")
+
+p2 <- ggplot(data=life)+
+  geom_point(aes(x=under_five_deaths, y=life_expectancy,  color=BMI))+
+  geom_smooth(aes(x=under_five_deaths, y=life_expectancy), method="lm", formula = y~x)+
+  ggtitle("under_five_deaths vs. life expectancy")
+
+p3 <- ggplot(data=life)+
+  geom_point(aes(x=infant_deaths, y=life_expectancy,  color=BMI))+
+  geom_smooth(aes(x=infant_deaths, y=life_expectancy), method="lm", formula = y~x)+
+  ggtitle("infant_deaths vs. life expectancy")
+
+p4 <- ggplot(data=life)+
+  geom_point(aes(x=total_deaths, y=life_expectancy,  color=BMI))+
+  geom_smooth(aes(x=total_deaths, y=life_expectancy), method="lm", formula = y~x)+
+  ggtitle("total_deaths vs. life expectancy")
+
+ggarrange(p1, p2, p3, p4, ncol = 2, nrow = 2)
+```
+
+### Enlarge part of the plot
+
+```{r, echo=FALSE}
+library(ggforce)
+p<-life %>%
+  ggplot(aes(x=under_five_deaths, y=life_expectancy,  color=BMI)) + 
+  geom_point()  
+p+ facet_zoom(xlim = c(0, 200), ylim = c(35, 90))
+
+p1<-life %>%
+  ggplot(aes(x=total_deaths, y=life_expectancy,  color=BMI)) + 
+  geom_point()  
+ p1+ facet_zoom(xlim = c(0, 500), ylim = c(35, 90))
+  
+```
+
+As shown from the above graph, the higher the adult_mortality/under_five_deaths/infant_deaths/total_deaths, the lower the life expectancy, but there is also some countries have low life expectancy even though they have low adult_mortality/ under_five_deaths/infant_deaths/total_deaths value.
+
+### Histogram of life_expectancy by Status category
+
+```{r, echo=FALSE}
+ggplot(data=life) +
+  geom_histogram(aes(life_expectancy, fill= Status),  bins =30)+
+  scale_fill_manual(values = c("orange", "green")) + ggtitle("Histogram of life_expectancy by Status category")
+```
+
+The overall distribution of life expectancy is normal distribution with right skewed, and the mean of the life_expectancy is around 70, and the mode is 75. Most countries are developing countries, and the distribution of life_expectancy for developing countries is right skewed too, the mode is around 75. The distribution of life expectancy for developed countries is around normal, and mode of is around 82. The distribution of life expectancy for developed countries is on the right of the distribution of developing countries.
+
+### Histogram of life_expectancy by Obesity category
+
+```{r, echo=FALSE}
+ggplot(data=life) +
+  geom_histogram(aes(life_expectancy, fill= obesity_level),  bins =30)+
+  scale_fill_manual(values = c("orange", "green","blue", "red")) + ggtitle("Histogram of life_expectancy by BMI category")
+```
+
+Most countries have obese obesity_level, and the distribution of life expectancy for obese obesity level is on the most right of the graph.
+
+### Histogram of life_expectancy by vaccine level category
+
+```{r, echo=FALSE}
+ggplot(data=life) +
+  geom_histogram(aes(life_expectancy, fill= vaccine_level),  bins =30)+ ggtitle("Histogram of life_expectancy by vaccine category")
+```
+
+Most countries have vaccine coverage $>80\%$ for all the three vaccines, and the distribution of life expectancy for 111 vaccine level is on the most left of the graph, and the distribution of life expectancy for 222 vaccine level is on the most right of the graph.
+
+### Barchart of BMI by status
+
+```{r, echo=FALSE}
+ggplot(life, aes(x =factor(obesity_level), y= prop.table(stat(count)), fill=factor(Status), label = scales::percent(prop.table(stat(count))))) +
+  geom_bar( position="dodge")+
+  geom_text(stat = 'count',
+              position = position_dodge(.9), 
+              vjust = -0.5, 
+              size = 3) +
+     scale_fill_manual(values = c("orange", "green", "red", "blue"))+
+  ggtitle("Barchart of BMI by Status")
+```
+
+More than half of the countries are developing countries with obese obesity_level.
+
+The proportion of developed countries in each obesity_level categories is as follows:
+2.1$\%$ normal obesity_level countries are developed countries, 24.97$\%$ overweight obesity_level countries are developed countries, 7.7$\%$ underweight obesity_level countries are developed countries, and 7.76$\%$ obese obesity_level countries are developed countries.
+
+### correlation plot
+
+```{r, echo=FALSE}
+
+my_data <- life[, c(4,5,6,7,9,11,12, 13, 15, 17,22)]
+library(psych)
+corPlot(my_data, cex = 0.8)
+
+```
+
+As shown from the above graph, the adult_mortality, BMI and schooling has correlation higher than 0.5 with life expectancy.
+Also, Polio, Diphtheria and GDP has correlation with life expectancy from 0.45 to 0.5. The correlations between Hepatitis_B, Polio and Diphtheria are from 0.44 to 0.67. The correlation between Schooling and adult_mortality/Alcohol/BMI/GDP is is greater or equal than 0.45.
+
+# 3.Preliminary results
+
+### Avergae and sd of life expectancy by status
+
+```{r, echo=FALSE}
+table1<-life[, .(
+  avg_life_expectancy = mean(life_expectancy),
+  sd_life_expectancy = sd(life_expectancy),
+  avg_GDP = mean(GDP),
+  sd_GDP = sd(GDP)
+  
+), by =.(Status)][order(avg_life_expectancy)]
+knitr::kable(table1, caption = "Avergae and sd of life expectancy by status")
+```
+
+### Avergae and sd of life expectancy by BMI
+
+```{r, echo=FALSE}
+table1<-life[, .(
+  avg_life_expectancy = mean(life_expectancy),
+  sd_life_expectancy = sd(life_expectancy)
+), by =.(obesity_level)][order(avg_life_expectancy)]
+knitr::kable(table1, caption = "Avergae and sd of life expectancy by BMI")
+```
+
+### Avergae and sd of life expectancy by vaccine
+
+```{r, echo=FALSE}
+table1<-life[, .(
+  avg_life_expectancy = mean(life_expectancy),
+  sd_life_expectancy = sd(life_expectancy)
+), by =.(vaccine_level)][order(avg_life_expectancy)]
+knitr::kable(table1, caption = "Avergae and sd of life expectancy by vaccine")
+```
+
+### t test for life expectancy by status
+
+```{r, echo=FALSE}
+t_test <- t.test(life_expectancy~Status, data = life, var.equal =TRUE)
+```
+
+Null hypothesis: true difference in means between group Developed and group Developing equals to 0.
+
+Since p-value < 2.2e-16 < 0.05, we will reject the null hypothesis that means between group Developed and group Developing equals to 0.
+
+### lm and glm model for life expectancy.
+
+```{r, echo=FALSE}
+# advanced regression
+ggplot(life, aes(x=GDP, y= life_expectancy)) +
+  geom_point() +
+  geom_smooth(method = 'lm', formula = y ~ x) +
+  geom_smooth(method = "gam", formula = y ~ s(x, bs="cs") , col=2)
+
+library(mgcv)
+lm_mod<-lm(life_expectancy ~ GDP+ Schooling + BMI +Diphtheria + adult_mortalit + Status , data =life)
+#summary(lm_mod)
+
+gam_mod <- gam(life_expectancy ~ s(GDP,bs= "cr")+Schooling + BMI  +Diphtheria + adult_mortalit + Status, data=life)
+#summary(gam_mod)
+plot(gam_mod)
+```
+
+From the above analysis, we can find that the life expectancy is highly affected by adult_mortality, BMI, Polios, Diphtheria, GDP, Schooling and Status, and Polios and Diphtheria are highly related to each other, so we will use 
+adult_mortality, BMI, Diphtheria, GDP, Schooling and Status to predict life expectancy.
+
+From the result of lm, the R-squared is around 0.750, and the R-squared for gam is around 0.757, so the gam fits the data slightly better since it can change line direction to fit data. However, since the r-squared for both models are high, the difference can be ignore, we may need to care about over-fitting problem.
+
+
+# 4. Conclusion
+
+In summary, immunization, mortality, economy and society factors all affect the life expectancy. The variables that greatly affect life expectancy including Status, Adult_mortality, GDP, Schooling, Polio, Diphtheria and BMI. The correlation between life expectancy and adult_mortality/BMI/Schooling is higher than 0.5. Also, the correlation between life expectancy and Polio/Diphtheria/GDP is from 0.45 to 0.5. There is a strong correlation between Hepatitis_B, Polio and Diphtheria.
+
+1. Developed countries has an average of 13 years life expectancy than developing countries.
+
+2. The correlation between adult mortality and life_expectancy is 0.7. As adult mortality increases, the life_expectancy decreases.
+
+3. The life expectancy increases as GDP increases, but the life_expectancy stays still when GDP reaches a certain high level.
+
+4. It is obvious that the life_expectancy increases as Schooling increase, and developed countries has higher schooling years.
+
+5. The higher vaccine coverage, the higher life expectancy.
+
+6. The mean of the life expectancy ordered by obesity_level is shown as follows: normal $<$ overweight $<$ underweight $<$ obese. More than $60\%$ of the countries in the obese obesity_level. For developed countries, the increase of BMI has no obvious effect on life expectancy. However, the developing countries with higher BMI have higher life expectancy.
+
+By using GDP, Schooling, BMI, Diphtheria, adult_mortality and Status to predict life expectancy in linear model, the R-squared is around 75$\%$, so 75$\%$ of data can be explained by the model.
+
